@@ -1,5 +1,6 @@
 package com.soft.sergey.numeriseur;
 
+import android.annotation.TargetApi;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -7,9 +8,11 @@ import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.speech.RecognizerIntent;
+import android.speech.tts.TextToSpeech;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -22,7 +25,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.StringTokenizer;
 
@@ -58,12 +63,16 @@ public class DActivity extends AppCompatActivity {
 
     private Handler mHandler = new Handler();
     Random randomNumber = new Random();
+    TextToSpeech tts;
     Boolean isHelped = false;
     int count = 0;
     int countYellow = 0;
     int countGreen = 0;
 
 
+    /*
+    For generating numbers in realtime
+     */
     private class MyAsyncTask extends AsyncTask<Void, String, Void> {
 
         @Override
@@ -73,8 +82,6 @@ public class DActivity extends AppCompatActivity {
 
             long endTime = System.currentTimeMillis() + timeToGenerate;
             while (System.currentTimeMillis() < endTime) {
-
-
                 String numb = String.valueOf(lastNmber = randomNumber.nextInt(maxNumber));
                 publishProgress(numb);
             }
@@ -98,12 +105,51 @@ public class DActivity extends AppCompatActivity {
 
     }
 
+    /*
+    For using various text to speach apis
+     */
+    @SuppressWarnings("deprecation")
+    private void ttsUnder20(String text) {
+        HashMap<String, String> map = new HashMap<>();
+        map.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "MessageId");
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, map);
+    }
 
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private void ttsGreater21(String text) {
+        String utteranceId = this.hashCode() + "";
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId);
+    }
+
+
+    /*
+    Creating buttons and handlers
+     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_d);
         tNumber = (TextView)findViewById(R.id.textView);
+
+
+        tts = new TextToSpeech(DActivity.this, new TextToSpeech.OnInitListener() {
+
+            @Override
+            public void onInit(int status) {
+                if(status == TextToSpeech.SUCCESS){
+                    int result = tts.setLanguage(Locale.FRANCE);
+                    if(result == TextToSpeech.LANG_MISSING_DATA ||
+                            result == TextToSpeech.LANG_NOT_SUPPORTED){
+                        Log.e("error", "French language is not supported");
+                    }
+                    else{
+
+                    }
+                }
+                else
+                    Log.e("error", "Initilization Failed!");
+            }
+        });
 
 
         final ImageButton clickButton = (ImageButton) findViewById(R.id.buttonGen);
@@ -112,9 +158,8 @@ public class DActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
 
-
-                if (SystemClock.elapsedRealtime() - mLastClickTime < 2000){
-                    return;
+                if (SystemClock.elapsedRealtime() - mLastClickTime < timeToGenerate){
+                    return;//ani-monkeys
                 }
                 mLastClickTime = SystemClock.elapsedRealtime();
 
@@ -135,8 +180,22 @@ public class DActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 TextView tShow = (TextView)findViewById(R.id.textShow);
-                tShow.setText(numberText[lastNmber]);
+                String text = numberText[lastNmber];
+                tShow.setText(text);
                 isHelped = true;
+
+                //parler ca
+                try {
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        ttsGreater21(text);
+                    } else {
+                        ttsUnder20(text);
+                    }
+
+                    //tts.speak(text, TextToSpeech.QUEUE_ADD, null);
+
+                } catch (Exception e) {}
             }
         });
 
@@ -183,7 +242,7 @@ public class DActivity extends AppCompatActivity {
         if (count > 13)    {
             ((LinearLayout) linearLayout).removeAllViews();
             //counting good rate + yellow rate/2
-            int rate = (int)(100.0 * (countGreen + countYellow / 2.0) / 13.0);
+            int rate = (int)(100.0 * (countGreen + countYellow / 2.0) / 14.0);
             Toast.makeText(getApplicationContext(),
                     "Taux: "+ String.valueOf(rate)+" %",
                     Toast.LENGTH_SHORT).show();
@@ -240,10 +299,8 @@ public class DActivity extends AppCompatActivity {
 
                         ImageButton clickButton = (ImageButton) findViewById(R.id.buttonGen);
                         lastNmber = maxNumber;
-                        clickButton.callOnClick();
+                        clickButton.callOnClick();//generate next number
                     }
-
-
 
                 }
                 break;
